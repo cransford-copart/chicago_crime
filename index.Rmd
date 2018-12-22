@@ -1,0 +1,73 @@
+---
+title: "Chicago_crime"
+author: "Carson"
+date: "December 22, 2018"
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Load Crime Data for Web
+Data sets containing crimes reported since 2015 will be downloaded from the City of Chicago's website; 'data.cityofchicago.org/Public-Safety' 
+```{r Load Data, message=FALSE}
+library(leaflet)
+library(dplyr)
+library(data.table)
+
+crimeDf <- read.csv(url("https://data.cityofchicago.org/api/views/vwwp-7yr9/rows.csv?accessType=DOWNLOAD&bom=true&format=true"))
+crimeDf <- as.data.table(crimeDf)
+```
+
+
+## Group Longitude and Latiture data points
+Since the data set records Long & Lat to a level of specificity that does not allow us to create substantial enough groups to identify patterns from, we will instead bin our continuous longitude and latitude data points by '0.1'.  
+```{r, echo=FALSE}
+summary(crimeDf$Latitude)
+
+summary(crimeDf$Longitude)
+```
+
+```{r pressure, echo=TRUE}
+binsLat <- seq(41.6, 42.1, .10)
+latLabels <- seq(41.6, 42, .1)
+crimeDf$lat_bin <- as.numeric(as.character(cut(crimeDf$Latitude, binsLat, labels=latLabels)))
+
+binsLong <- seq(-88, -87.5, .1)
+longLabels <- seq(-88, -87.6, .1)
+crimeDf$long_bin <- as.numeric(as.character(cut(crimeDf$Longitude, binsLong, labels=longLabels)))
+```
+
+
+## Summarize Data 
+Summarize the volume of arrests made by our grouped longitude and latitude data points.
+```{r Summarize Data, echo=FALSE, include=FALSE}
+library(data.table)
+
+crimeSumm <- as.data.table(crimeDf)[(!is.na(crimeDf$lat_bin) & !is.na(crimeDf$long_bin)),
+                     list(
+                       total_arrests = length(Arrest == TRUE)
+                     ),
+                     by = c("lat_bin", "long_bin")]
+```
+
+```{r, echo=FALSE}
+print(crimeSumm)
+```
+
+## Create Geospatial Map 
+This map will vary the size of the circles made based upon arrests made within our grouped longitude and latitude areas.
+```{r}
+library(dplyr)
+library(leaflet)
+
+crimeSumm %>% 
+  leaflet() %>%
+  addTiles() %>%
+  addCircles(lng=crimeSumm$long_bin,
+             lat=crimeSumm$lat_bin,
+             weight = 1, 
+             radius = sqrt(crimeSumm$total_arrests) * 30)
+```
